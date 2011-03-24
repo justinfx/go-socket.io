@@ -1,72 +1,3 @@
-/*
-	The socketio package is a simple abstraction layer for different web browser-
-	supported transport mechanisms. It is meant to be fully compatible with the
-	Socket.IO client side JavaScript socket API library by LearnBoost Labs
-	(http://socket.io/), but through custom formatters it might fit other client
-	implementations too.
-
-	It (together with the LearnBoost's client-side libraries) provides an easy way for
-	developers to access the most popular browser transport mechanism today:
-	multipart- and long-polling XMLHttpRequests, HTML5 WebSockets and
-	forever-frames [TODO]. The socketio package works hand-in-hand with the standard
-	http package by plugging itself into a configurable ServeMux. It has an callback-style
-	API for handling connection events. The callbacks are:
-
-		- SocketIO.OnConnect
-		- SocketIO.OnDisconnect
-		- SocketIO.OnMessage
-
-	Other utility-methods include:
-
-		- SocketIO.Mux
-		- SocketIO.Broadcast
-		- SocketIO.BroadcastExcept
-		- SocketIO.GetConn
-		- Conn.Send
-
-	Each new connection will be automatically assigned an unique session id and
-	using those the clients can reconnect without losing messages: the server
-	persists clients' pending messages (until some configurable point) if they can't
-	be immediately delivered. All writes through `Conn.Send` by design asynchronous.
-
-	Finally, the actual format on the wire is described by a separate `Codec`.
-	The default codec is compatible with the LearnBoost's Socket.IO client.
-
-	For example, here is a simple chat server:
-
-		package main
-
-		import (
-			"http"
-			"log"
-			"socketio"
-		)
-
-		func main() {
-			sio := socketio.NewSocketIO(nil, nil)
-			sio.Mux("/socket.io/", nil)
-
-			http.Handle("/", http.FileServer("www/", "/"))
-
-			sio.OnConnect(func(c *socketio.Conn) {
-				sio.Broadcast(struct{ announcement string }{"connected: " + c.String()})
-			})
-
-			sio.OnDisconnect(func(c *socketio.Conn) {
-				sio.BroadcastExcept(c, struct{ announcement string }{"disconnected: " + c.String()})
-			})
-
-			sio.OnMessage(func(c *socketio.Conn, msg string) {
-				sio.BroadcastExcept(c,
-					struct{ message []string }{[]string{c.String(), msg}})
-			})
-
-			log.Println("Server started.")
-			if err := http.ListenAndServe(":8080", nil); err != nil {
-				log.Exitln("ListenAndServer:", err)
-			}
-		}
-*/
 package socketio
 
 import (
@@ -83,10 +14,11 @@ import (
 // SocketIO handles transport abstraction and provide the user
 // a handfull of callbacks to observe different events.
 type SocketIO struct {
-	sessions     map[SessionID]*Conn // Holds the outstanding sessions.
-	sessionsLock *sync.RWMutex       // Protects the sessions.
-	config       Config              // Holds the configuration values.
-	muxed        bool                // Is the server muxed already.
+	sessions        map[SessionID]*Conn // Holds the outstanding sessions.
+	sessionsLock    *sync.RWMutex       // Protects the sessions.
+	config          Config              // Holds the configuration values.
+	serveMux        *ServeMux
+	transportLookup map[string]Transport
 
 	// The callbacks set by the user
 	callbacks struct {
@@ -105,11 +37,20 @@ func NewSocketIO(config *Config) *SocketIO {
 		config = &DefaultConfig
 	}
 
-	return &SocketIO{
-		config:       *config,
-		sessions:     make(map[SessionID]*Conn),
-		sessionsLock: new(sync.RWMutex),
+	sio := &SocketIO{
+		config:          *config,
+		sessions:        make(map[SessionID]*Conn),
+		sessionsLock:    new(sync.RWMutex),
+		transportLookup: make(map[string]Transport),
 	}
+
+	for _, t := range sio.config.Transports {
+		sio.transportLookup[t.Resource()] = t
+	}
+
+	sio.serveMux = NewServeMux(sio)
+
+	return sio
 }
 
 // Broadcast schedules data to be sent to each connection.
@@ -143,40 +84,13 @@ func (sio *SocketIO) GetConn(sessionid SessionID) (c *Conn) {
 // The resource must end with a slash and if the mux is nil, the
 // http.DefaultServeMux is used. It registers handlers for URLs like:
 // <resource><t.resource>[/], e.g. /socket.io/websocket && socket.io/websocket/.
-func (sio *SocketIO) Mux(resource string, mux *http.ServeMux) os.Error {
-	if mux == nil {
-		mux = http.DefaultServeMux
-	}
-
-	if sio.muxed {
-		return os.NewError("Mux: already muxed")
-	}
-
-	if resource == "" || resource[len(resource)-1] != '/' {
-		return os.NewError("Mux: resource must end with a slash")
-	}
-
-	for _, t := range sio.config.Transports {
-		tt := t
-		tresource := resource + tt.Resource()
-		mux.HandleFunc(tresource+"/", func(w http.ResponseWriter, req *http.Request) {
-			sio.handle(tt, w, req)
-		})
-		mux.HandleFunc(tresource, func(w http.ResponseWriter, req *http.Request) {
-			sio.handle(tt, w, req)
-		})
-	}
-
-	sio.muxed = true
-	return nil
+func (sio *SocketIO) ServeMux() *ServeMux {
+	return sio.serveMux
 }
 
 // OnConnect sets f to be invoked when a new session is established. It passes
 // the established connection as an argument to the callback.
 func (sio *SocketIO) OnConnect(f func(*Conn)) os.Error {
-	if sio.muxed {
-		return os.NewError("OnConnect: already muxed")
-	}
 	sio.callbacks.onConnect = f
 	return nil
 }
@@ -185,9 +99,6 @@ func (sio *SocketIO) OnConnect(f func(*Conn)) os.Error {
 // the established connection as an argument to the callback. After disconnection
 // the connection is considered to be destroyed, and it should not be used anymore.
 func (sio *SocketIO) OnDisconnect(f func(*Conn)) os.Error {
-	if sio.muxed {
-		return os.NewError("OnDisconnect: already muxed")
-	}
 	sio.callbacks.onDisconnect = f
 	return nil
 }
@@ -196,9 +107,6 @@ func (sio *SocketIO) OnDisconnect(f func(*Conn)) os.Error {
 // the established connection along with the received message as arguments
 // to the callback.
 func (sio *SocketIO) OnMessage(f func(*Conn, Message)) os.Error {
-	if sio.muxed {
-		return os.NewError("OnMessage: already muxed")
-	}
 	sio.callbacks.onMessage = f
 	return nil
 }
@@ -229,8 +137,8 @@ func (sio *SocketIO) handle(t Transport, w http.ResponseWriter, req *http.Reques
 	var c *Conn
 	var err os.Error
 
-	if origin, ok := req.Header["Origin"]; ok {
-		if _, ok = sio.verifyOrigin(origin); !ok {
+	if origin := req.Header.Get("Origin"); origin != "" {
+		if _, ok := sio.verifyOrigin(origin); !ok {
 			sio.Log("sio/handle: unauthorized origin:", origin)
 			w.WriteHeader(http.StatusUnauthorized)
 			return
@@ -264,21 +172,14 @@ func (sio *SocketIO) handle(t Transport, w http.ResponseWriter, req *http.Reques
 		parts = strings.Split(req.URL.Path[i:pathLen], "/", -1)
 	}
 
-	switch len(parts) {
-	case 1:
-		// only resource was present, so create a new connection
+	if len(parts) < 2 || parts[1] == "" {
 		c, err = newConn(sio)
 		if err != nil {
 			sio.Log("sio/handle: unable to create a new connection:", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-
-	case 2:
-		fallthrough
-
-	case 3:
-		// session id was present
+	} else {
 		c = sio.GetConn(SessionID(parts[1]))
 	}
 

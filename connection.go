@@ -79,12 +79,17 @@ func (c *Conn) String() string {
 // it must be otherwise marshallable by the standard json package. If the send queue
 // has reached sio.config.QueueLength or the connection has been disconnected,
 // then the data is dropped and a an error is returned.
-func (c *Conn) Send(data interface{}) os.Error {
-	if ok := c.queue <- data; !ok {
-		if closed(c.queue) {
-			return ErrDestroyed
-		}
+func (c *Conn) Send(data interface{}) (err os.Error) {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
 
+	if c.disconnected {
+		return ErrDestroyed
+	}
+
+	select {
+	case c.queue <- data:
+	default:
 		return ErrQueueFull
 	}
 
@@ -113,24 +118,28 @@ func (c *Conn) Close() os.Error {
 // reconnected). Finally, handle will wake up the reader and the flusher.
 func (c *Conn) handle(t Transport, w http.ResponseWriter, req *http.Request) (err os.Error) {
 	c.mutex.Lock()
-	defer c.mutex.Unlock()
 
 	if c.disconnected {
+		c.mutex.Unlock()
 		return ErrNotConnected
 	}
 
 	if req.Method == "POST" {
+		c.mutex.Unlock()
+
 		if msg := req.FormValue("data"); msg != "" {
 			w.SetHeader("Content-Type", "text/plain")
 			w.Write(okResponse)
 			c.receive([]byte(msg))
 		} else {
 			c.sio.Log("sio/conn: handle: POST missing data-field:", c)
-			return errMissingPostData
+			err = errMissingPostData
 		}
 
 		return
 	}
+
+	didHandshake := false
 
 	s := t.newSocket()
 	err = s.accept(w, req, func() {
@@ -150,12 +159,11 @@ func (c *Conn) handle(t Transport, w http.ResponseWriter, req *http.Request) (er
 			}
 
 			c.handshaked = true
+			didHandshake = true
 
 			go c.keepalive()
 			go c.flusher()
 			go c.reader()
-			defer c.sio.onConnect(c)
-			defer c.mutex.Unlock()
 
 			c.sio.Log("sio/conn: connected:", c)
 		} else {
@@ -163,9 +171,26 @@ func (c *Conn) handle(t Transport, w http.ResponseWriter, req *http.Request) (er
 		}
 
 		c.numConns++
-		_ = c.wakeupFlusher <- 1
-		_ = c.wakeupReader <- 1
+
+		select {
+		case c.wakeupFlusher <- 1:
+		default:
+		}
+
+		select {
+		case c.wakeupReader <- 1:
+		default:
+		}
+
+		if didHandshake {
+			c.mutex.Unlock()
+			c.sio.onConnect(c)
+		}
 	})
+
+	if !didHandshake {
+		c.mutex.Unlock()
+	}
 
 	return
 }
@@ -210,6 +235,7 @@ func (c *Conn) keepalive() {
 	c.ticker = time.NewTicker(c.sio.config.HeartbeatInterval)
 	defer c.ticker.Stop()
 
+Loop:
 	for t := range c.ticker.C {
 		c.mutex.Lock()
 
@@ -225,11 +251,14 @@ func (c *Conn) keepalive() {
 		}
 
 		c.numHeartbeats++
-		if ok := c.queue <- heartbeat(c.numHeartbeats); !ok {
+
+		select {
+		case c.queue <- heartbeat(c.numHeartbeats):
+		default:
 			c.sio.Log("sio/keepalive: unable to queue heartbeat. fail now. TODO: FIXME", c)
 			c.disconnect()
 			c.mutex.Unlock()
-			break
+			break Loop
 		}
 
 		c.mutex.Unlock()
@@ -252,7 +281,6 @@ func (c *Conn) flusher() {
 	buf := new(bytes.Buffer)
 	var err os.Error
 	var msg interface{}
-	var ok bool
 	var n int
 
 	for msg = range c.queue {
@@ -261,14 +289,18 @@ func (c *Conn) flusher() {
 		n = 1
 
 		if err == nil {
-			for n < c.sio.config.QueueLength {
-				if msg, ok = <-c.queue; !ok {
-					break
-				}
-				n++
 
-				if err = c.enc.Encode(buf, msg); err != nil {
-					break
+		DrainLoop:
+			for n < c.sio.config.QueueLength {
+				select {
+				case msg = <-c.queue:
+					n++
+					if err = c.enc.Encode(buf, msg); err != nil {
+						break DrainLoop
+					}
+
+				default:
+					break DrainLoop
 				}
 			}
 		}
@@ -277,7 +309,7 @@ func (c *Conn) flusher() {
 			continue
 		}
 
-	L:
+	FlushLoop:
 		for {
 			for {
 				c.mutex.Lock()
@@ -285,7 +317,7 @@ func (c *Conn) flusher() {
 				c.mutex.Unlock()
 
 				if err == nil {
-					break L
+					break FlushLoop
 				} else if err != os.EAGAIN {
 					break
 				}
