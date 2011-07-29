@@ -30,10 +30,12 @@ type Conn struct {
 	online           bool
 	lastConnected    int64
 	lastDisconnected int64
+	lastMessage      int64
 	lastHeartbeat    heartbeat
 	numHeartbeats    int
 	ticker           *time.Ticker
-	queue            chan interface{} // Buffers the outgoing messages.
+	queue            chan interface{} // Buffers the outgoing normal messages.
+	serviceQueue     chan interface{} // Buffers the outgoing service messages.
 	numConns         int              // Total number of reconnects.
 	handshaked       bool             // Indicates if the handshake has been sent.
 	disconnected     bool             // Indicates if the connection has been disconnected.
@@ -60,7 +62,9 @@ func newConn(sio *SocketIO) (c *Conn, err os.Error) {
 		wakeupFlusher: make(chan byte),
 		wakeupReader:  make(chan byte),
 		queue:         make(chan interface{}, sio.config.QueueLength),
+		serviceQueue:  make(chan interface{}, 10), // TODO: Reasonable to expect this limit?
 		enc:           sio.config.Codec.NewEncoder(),
+		lastMessage:   time.Nanoseconds(),
 	}
 
 	c.dec = sio.config.Codec.NewDecoder(&c.decBuf)
@@ -93,10 +97,19 @@ func (c *Conn) Send(data interface{}) (err os.Error) {
 		return ErrDestroyed
 	}
 
-	select {
-	case c.queue <- data:
+	switch t := data.(type) {
+	case heartbeat, handshake, disconnect:
+		select {
+		case c.serviceQueue <- data:
+		default:
+			return ErrQueueFull
+		}
 	default:
-		return ErrQueueFull
+		select {
+		case c.queue <- data:
+		default:
+			return ErrQueueFull
+		}
 	}
 
 	return nil
@@ -215,6 +228,7 @@ func (c *Conn) disconnect() {
 	close(c.wakeupFlusher)
 	close(c.wakeupReader)
 	close(c.queue)
+	close(c.serviceQueue)
 }
 
 // Receive decodes and handles data received from the socket.
@@ -234,6 +248,7 @@ func (c *Conn) receive(data []byte) {
 			c.lastHeartbeat = hb
 		} else {
 			c.sio.onMessage(c, m)
+			c.lastMessage = time.Nanoseconds()
 		}
 	}
 }
@@ -252,15 +267,21 @@ Loop:
 		}
 
 		if (!c.online && t-c.lastDisconnected > c.sio.config.ReconnectTimeout) || int(c.lastHeartbeat) < c.numHeartbeats {
+			c.sio.Log("sio/keepalive: reconnect timeout or heatbeat failure")
 			c.disconnect()
 			c.mutex.Unlock()
-			break
+			break Loop
+		}
+
+		if (t - c.lastMessage) < c.sio.config.HeartbeatInterval {
+			c.mutex.Unlock()
+			continue Loop
 		}
 
 		c.numHeartbeats++
 
 		select {
-		case c.queue <- heartbeat(c.numHeartbeats):
+		case c.serviceQueue <- heartbeat(c.numHeartbeats):
 		default:
 			c.sio.Log("sio/keepalive: unable to queue heartbeat. fail now. TODO: FIXME", c)
 			c.disconnect()
@@ -289,28 +310,48 @@ func (c *Conn) flusher() {
 	var err os.Error
 	var msg interface{}
 	var n int
+	var ok bool
 
-	for msg = range c.queue {
+	for {
+
 		buf.Reset()
-		err = c.enc.Encode(buf, msg)
-		n = 1
+		msg = nil
+		err = nil
 
-		if err == nil {
+		select {
 
-		DrainLoop:
-			for n < c.sio.config.QueueLength {
-				select {
-				case msg = <-c.queue:
-					n++
-					if err = c.enc.Encode(buf, msg); err != nil {
+		case msg, ok = <-c.serviceQueue:
+			if !ok {
+				return
+			}
+			err = c.enc.Encode(buf, msg)
+
+		case msg, ok = <-c.queue:
+			if !ok {
+				return
+			}
+
+			err = c.enc.Encode(buf, msg)
+			n = 1
+
+			if err == nil {
+
+			DrainLoop:
+				for n < c.sio.config.QueueLength {
+					select {
+					case msg = <-c.queue:
+						n++
+						if err = c.enc.Encode(buf, msg); err != nil {
+							break DrainLoop
+						}
+
+					default:
 						break DrainLoop
 					}
-
-				default:
-					break DrainLoop
 				}
 			}
 		}
+
 		if err != nil {
 			c.sio.Logf("sio/conn: flusher/encode: lost %d messages (%d bytes): %s %s", n, buf.Len(), err, c)
 			continue
@@ -334,6 +375,7 @@ func (c *Conn) flusher() {
 				return
 			}
 		}
+
 	}
 }
 
