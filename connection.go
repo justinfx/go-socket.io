@@ -267,7 +267,6 @@ Loop:
 		}
 
 		if (!c.online && t-c.lastDisconnected > c.sio.config.ReconnectTimeout) || int(c.lastHeartbeat) < c.numHeartbeats {
-			c.sio.Log("sio/keepalive: reconnect timeout or heatbeat failure")
 			c.disconnect()
 			c.mutex.Unlock()
 			break Loop
