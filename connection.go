@@ -33,7 +33,7 @@ type Conn struct {
 	lastMessage      int64
 	lastHeartbeat    heartbeat
 	numHeartbeats    int
-	ticker           *time.Ticker
+	ticker           *DelayTimer
 	queue            chan interface{} // Buffers the outgoing normal messages.
 	serviceQueue     chan interface{} // Buffers the outgoing service messages.
 	numConns         int              // Total number of reconnects.
@@ -242,25 +242,26 @@ func (c *Conn) receive(data []byte) {
 		c.sio.Log("sio/conn: receive/decode:", err, c)
 		return
 	}
-
+	
+	c.ticker.Reset(c.sio.config.HeartbeatInterval)
+	
 	for _, m := range msgs {
 		if hb, ok := m.heartbeat(); ok {
 			c.lastHeartbeat = hb
 		} else {
 			c.sio.onMessage(c, m)
-			c.lastMessage = time.Nanoseconds()
 		}
 	}
 }
 
 func (c *Conn) keepalive() {
-	c.ticker = time.NewTicker(c.sio.config.HeartbeatInterval)
+	c.ticker = NewDelayTimer()
+	c.ticker.Reset(c.sio.config.HeartbeatInterval)
 	defer c.ticker.Stop()
 
 Loop:
-	for t := range c.ticker.C {
+	for t := range c.ticker.Timeouts {
 		c.mutex.Lock()
-
 		if c.disconnected {
 			c.mutex.Unlock()
 			return
@@ -270,11 +271,6 @@ Loop:
 			c.disconnect()
 			c.mutex.Unlock()
 			break Loop
-		}
-
-		if (t - c.lastMessage) < c.sio.config.HeartbeatInterval {
-			c.mutex.Unlock()
-			continue Loop
 		}
 
 		c.numHeartbeats++
