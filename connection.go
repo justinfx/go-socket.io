@@ -242,9 +242,9 @@ func (c *Conn) receive(data []byte) {
 		c.sio.Log("sio/conn: receive/decode:", err, c)
 		return
 	}
-	
+
 	c.ticker.Reset(c.sio.config.HeartbeatInterval)
-	
+
 	for _, m := range msgs {
 		if hb, ok := m.heartbeat(); ok {
 			c.lastHeartbeat = hb
