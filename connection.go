@@ -255,8 +255,9 @@ func (c *Conn) receive(data []byte) {
 }
 
 func (c *Conn) keepalive() {
+	interval := c.sio.config.HeartbeatInterval
 	c.ticker = NewDelayTimer()
-	c.ticker.Reset(c.sio.config.HeartbeatInterval)
+	c.ticker.Reset(interval)
 	defer c.ticker.Stop()
 
 Loop:
@@ -267,12 +268,13 @@ Loop:
 			return
 		}
 
-		if (!c.online && t-c.lastDisconnected > c.sio.config.ReconnectTimeout) || int(c.lastHeartbeat) < c.numHeartbeats {
+		c.ticker.Reset(interval)
+
+		if (!c.online && t-c.lastDisconnected > c.sio.config.ReconnectTimeout) || (int(c.lastHeartbeat)+1) < c.numHeartbeats {
 			c.disconnect()
 			c.mutex.Unlock()
 			break Loop
 		}
-
 		c.numHeartbeats++
 
 		select {
@@ -286,7 +288,6 @@ Loop:
 
 		c.mutex.Unlock()
 	}
-
 	c.sio.onDisconnect(c)
 }
 
@@ -308,7 +309,6 @@ func (c *Conn) flusher() {
 	var ok bool
 
 	for {
-
 		buf.Reset()
 		msg = nil
 		err = nil
@@ -358,7 +358,6 @@ func (c *Conn) flusher() {
 				c.mutex.Lock()
 				_, err = buf.WriteTo(c.socket)
 				c.mutex.Unlock()
-
 				if err == nil {
 					break FlushLoop
 				} else if err != os.EAGAIN {
