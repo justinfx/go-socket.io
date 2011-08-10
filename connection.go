@@ -242,8 +242,11 @@ func (c *Conn) receive(data []byte) {
 		c.sio.Log("sio/conn: receive/decode:", err, c)
 		return
 	}
-
-	c.ticker.Reset(c.sio.config.HeartbeatInterval)
+	
+	// TODO: Resetting the timer after every message
+	// seems to break protocol with socket.io clients,
+	// where they are always expecting a constant heartbeat
+	//c.ticker.Reset(c.sio.config.HeartbeatInterval)
 
 	for _, m := range msgs {
 		if hb, ok := m.heartbeat(); ok {
@@ -268,14 +271,14 @@ Loop:
 			return
 		}
 
-		c.ticker.Reset(interval)
-
 		if (!c.online && t-c.lastDisconnected > c.sio.config.ReconnectTimeout) || (int(c.lastHeartbeat)+1) < c.numHeartbeats {
 			c.disconnect()
 			c.mutex.Unlock()
 			break Loop
 		}
 		c.numHeartbeats++
+
+		c.ticker.Reset(interval)
 
 		select {
 		case c.serviceQueue <- heartbeat(c.numHeartbeats):
@@ -380,7 +383,7 @@ func (c *Conn) flusher() {
 // c.wakeupReader channel.
 func (c *Conn) reader() {
 	buf := make([]byte, c.sio.config.ReadBufferSize)
-
+	
 	for {
 		c.mutex.Lock()
 		socket := c.socket
