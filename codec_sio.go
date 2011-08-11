@@ -82,9 +82,14 @@ func (sm *sioMessage) heartbeat() (heartbeat, bool) {
 	return -1, false
 }
 
-// Data returns the raw message.
+// Data returns the raw message as a string.
 func (sm *sioMessage) Data() string {
 	return string(sm.data)
+}
+
+// Bytes returns the raw message.
+func (sm *sioMessage) Bytes() []byte {
+	return sm.data
 }
 
 // JSON returns the JSON embedded in the message, if available.
@@ -251,7 +256,7 @@ L:
 				continue
 			}
 
-			if bytes.Equal(dec.buf.Bytes(), sioFrameDelim) {
+			if !bytes.Equal(dec.buf.Bytes(), sioFrameDelim) {
 				dec.Reset()
 				return nil, os.NewError("Malformed header")
 			}
