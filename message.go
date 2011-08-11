@@ -44,5 +44,5 @@ type Message interface {
 	Annotation(string) (string, bool)
 	Data() string
 	Type() uint8
-	JSON() (string, bool)
+	JSON() ([]byte, bool)
 }
