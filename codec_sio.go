@@ -7,6 +7,7 @@ import (
 	"json"
 	"os"
 	"strconv"
+	"strings"
 	"utf8"
 )
 
@@ -15,23 +16,21 @@ const (
 	SIOAnnotationRealm = "r"
 	SIOAnnotationJSON  = "j"
 
+	sioFrameDelim          = "~m~"
+	sioFrameDelimJSON      = "~j~"
+	sioFrameDelimHeartbeat = "~h~"
+
 	sioMessageTypeDisconnect = 0
 	sioMessageTypeMessage    = 1
 	sioMessageTypeHeartbeat  = 2
 	sioMessageTypeHandshake  = 3
 )
 
-var (
-	sioFrameDelim          = []byte("~m~")
-	sioFrameDelimJSON      = []byte("~j~")
-	sioFrameDelimHeartbeat = []byte("~h~")
-)
-
 // SioMessage fulfills the message interface.
 type sioMessage struct {
 	annotations map[string]string
 	typ         uint8
-	data        []byte
+	data        string
 }
 
 // MessageType checks if the message starts with sioFrameDelimJSON or
@@ -74,7 +73,7 @@ func (sm *sioMessage) Annotation(key string) (value string, ok bool) {
 // false will be returned.
 func (sm *sioMessage) heartbeat() (heartbeat, bool) {
 	if sm.typ == sioMessageTypeHeartbeat {
-		if n, err := strconv.Atoi(string(sm.data)); err == nil {
+		if n, err := strconv.Atoi(sm.data); err == nil {
 			return heartbeat(n), true
 		}
 	}
@@ -82,23 +81,18 @@ func (sm *sioMessage) heartbeat() (heartbeat, bool) {
 	return -1, false
 }
 
-// Data returns the raw message as a string.
+// Data returns the raw message.
 func (sm *sioMessage) Data() string {
 	return string(sm.data)
 }
 
-// Bytes returns the raw message.
-func (sm *sioMessage) Bytes() []byte {
-	return sm.data
-}
-
 // JSON returns the JSON embedded in the message, if available.
-func (sm *sioMessage) JSON() ([]byte, bool) {
+func (sm *sioMessage) JSON() (string, bool) {
 	if sm.Type() == MessageJSON {
 		return sm.data, true
 	}
 
-	return nil, false
+	return "", false
 }
 
 // SIOCodec is the codec used by the official Socket.IO client by LearnBoost.
@@ -224,7 +218,7 @@ L:
 		case sioDecodeStateHeaderBegin:
 			dec.buf.WriteRune(c)
 			if dec.buf.Len() == len(sioFrameDelim) {
-				if !bytes.Equal(dec.buf.Bytes(), sioFrameDelim) {
+				if dec.buf.String() != sioFrameDelim {
 					dec.Reset()
 					return nil, os.NewError("Malformed header")
 				}
@@ -255,7 +249,7 @@ L:
 				continue
 			}
 
-			if !bytes.Equal(dec.buf.Bytes(), sioFrameDelim) {
+			if dec.buf.String() != sioFrameDelim {
 				dec.Reset()
 				return nil, os.NewError("Malformed header")
 			}
