@@ -29,7 +29,6 @@ type SocketIO struct {
 	}
 }
 
-
 // NewSocketIO creates a new socketio server with chosen transports and configuration
 // options. If transports is nil, the DefaultTransports is used. If config is nil, the
 // DefaultConfig is used.

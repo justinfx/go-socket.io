@@ -178,7 +178,6 @@ const (
 	sioDecodeStateEnd
 )
 
-
 type sioDecoder struct {
 	src           *bytes.Buffer
 	buf           bytes.Buffer

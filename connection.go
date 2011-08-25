@@ -72,7 +72,6 @@ func newConn(sio *SocketIO) (c *Conn, err os.Error) {
 	return
 }
 
-
 // String returns a string representation of the connection and implements the
 // fmt.Stringer interface.
 func (c *Conn) String() string {
@@ -220,7 +219,6 @@ func (c *Conn) handshake() os.Error {
 	return c.enc.Encode(c.socket, handshake(c.sessionid))
 }
 
-
 func (c *Conn) disconnect() {
 	c.sio.Log("sio/conn: disconnected:", c)
 	c.socket.Close()
@@ -243,7 +241,7 @@ func (c *Conn) receive(data []byte) {
 		c.sio.Log("sio/conn: receive/decode:", err, c)
 		return
 	}
-	
+
 	// TODO: Resetting the timer after every message
 	// seems to break protocol with socket.io clients,
 	// where they are always expecting a constant heartbeat
@@ -384,7 +382,7 @@ func (c *Conn) flusher() {
 // c.wakeupReader channel.
 func (c *Conn) reader() {
 	buf := make([]byte, c.sio.config.ReadBufferSize)
-	
+
 	for {
 		c.mutex.Lock()
 		socket := c.socket
