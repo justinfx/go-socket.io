@@ -18,7 +18,6 @@ var (
 	DefaultLogger = log.New(os.Stdout, "", log.Ldate|log.Ltime)
 )
 
-
 type DelayTimer struct {
 	mu       sync.Mutex
 	handling bool
