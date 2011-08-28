@@ -97,7 +97,7 @@ func (c *Conn) Send(data interface{}) (err os.Error) {
 	}
 
 	switch t := data.(type) {
-	case heartbeat, handshake, disconnect:
+	case heartbeat:
 		select {
 		case c.serviceQueue <- data:
 		default:
@@ -236,16 +236,11 @@ func (c *Conn) disconnect() {
 func (c *Conn) receive(data []byte) {
 	c.decBuf.Write(data)
 	msgs, err := c.dec.Decode()
-	c.decBuf.Reset()
+	
 	if err != nil {
 		c.sio.Log("sio/conn: receive/decode:", err, c)
 		return
 	}
-
-	// TODO: Resetting the timer after every message
-	// seems to break protocol with socket.io clients,
-	// where they are always expecting a constant heartbeat
-	//c.ticker.Reset(c.sio.config.HeartbeatInterval)
 
 	for _, m := range msgs {
 		if hb, ok := m.heartbeat(); ok {
