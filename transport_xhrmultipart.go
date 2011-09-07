@@ -64,7 +64,7 @@ func (s *xhrMultipartSocket) accept(w http.ResponseWriter, req *http.Request, pr
 		buf.WriteString("HTTP/1.0 200 OK\r\n")
 		buf.WriteString("Content-Type: multipart/x-mixed-replace; boundary=\"socketio\"\r\n")
 		buf.WriteString("Connection: keep-alive\r\n")
-		if origin, ok := req.Header["Origin"]; ok {
+		if origin := req.Header.Get("Origin"); origin != "" {
 			fmt.Fprintf(buf,
 				"Access-Control-Allow-Origin: %s\r\nAccess-Control-Allow-Credentials: true\r\n",
 				origin)
