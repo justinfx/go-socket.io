@@ -61,9 +61,9 @@ var streamingEncodeTests = []streamingEncodeTest{
 	},
 	{
 		struct {
-			Boolean bool   "Boolean"
-			Str     string "Str"
-			Array   []int  "Array"
+			Boolean bool   "json:Boolean"
+			Str     string "json:Str"
+			Array   []int  "json:Array"
 		}{
 			false,
 			"string♥",

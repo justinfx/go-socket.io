@@ -1,3 +1,4 @@
+
 package socketio
 
 import (
@@ -239,6 +240,7 @@ L:
 			data := dec.buf.Bytes()
 			dec.msg.data = make([]byte, len(data))
 			copy(dec.msg.data, data)
+			
 			dec.buf.Reset()
 			dec.state = sioStreamingDecodeStateTrailer
 			fallthrough
