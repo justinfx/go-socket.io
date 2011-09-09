@@ -265,7 +265,7 @@ Loop:
 			return
 		}
 
-		if (!c.online && t-c.lastDisconnected > c.sio.config.ReconnectTimeout) || (int(c.lastHeartbeat)+1) < c.numHeartbeats {
+		if (!c.online && t-c.lastDisconnected > c.sio.config.ReconnectTimeout) || int(c.lastHeartbeat) < c.numHeartbeats {
 			c.disconnect()
 			c.mutex.Unlock()
 			break Loop
