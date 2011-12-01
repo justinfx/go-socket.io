@@ -1,23 +1,24 @@
 package socketio
 
 import (
-	"http"
-	"os"
-	"net"
 	"bytes"
-	"time"
+	"errors"
 	"fmt"
+	"net"
+	"net/http"
+	"os"
 	"sync"
+	"time"
 )
 
 var (
 	// ErrDestroyed is used when the connection has been disconnected (i.e. can't be used anymore).
-	ErrDestroyed = os.NewError("connection is disconnected")
+	ErrDestroyed = errors.New("connection is disconnected")
 
 	// ErrQueueFull is used when the send queue is full.
-	ErrQueueFull = os.NewError("send queue is full")
+	ErrQueueFull = errors.New("send queue is full")
 
-	errMissingPostData = os.NewError("Missing HTTP post data-field")
+	errMissingPostData = errors.New("Missing HTTP post data-field")
 )
 
 // Conn represents a single session and handles its handshaking,
@@ -49,7 +50,7 @@ type Conn struct {
 
 // NewConn creates a new connection for the sio. It generates the session id and
 // prepares the internal structure for usage.
-func newConn(sio *SocketIO) (c *Conn, err os.Error) {
+func newConn(sio *SocketIO) (c *Conn, err error) {
 	var sessionid SessionID
 	if sessionid, err = NewSessionID(); err != nil {
 		sio.Log("sio/newConn: newSessionID:", err)
@@ -64,7 +65,7 @@ func newConn(sio *SocketIO) (c *Conn, err os.Error) {
 		queue:         make(chan interface{}, sio.config.QueueLength),
 		serviceQueue:  make(chan interface{}, 10), // TODO: Reasonable to expect this limit?
 		enc:           sio.config.Codec.NewEncoder(),
-		lastMessage:   time.Nanoseconds(),
+		lastMessage:   int64(time.Now().Nanosecond()),
 	}
 
 	c.dec = sio.config.Codec.NewDecoder(&c.decBuf)
@@ -88,7 +89,7 @@ func (c *Conn) RemoteAddr() string {
 // it must be otherwise marshallable by the standard json package. If the send queue
 // has reached sio.config.QueueLength or the connection has been disconnected,
 // then the data is dropped and a an error is returned.
-func (c *Conn) Send(data interface{}) (err os.Error) {
+func (c *Conn) Send(data interface{}) (err error) {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
@@ -96,7 +97,7 @@ func (c *Conn) Send(data interface{}) (err os.Error) {
 		return ErrDestroyed
 	}
 
-	switch t := data.(type) {
+	switch data.(type) {
 	case heartbeat:
 		select {
 		case c.serviceQueue <- data:
@@ -114,7 +115,7 @@ func (c *Conn) Send(data interface{}) (err os.Error) {
 	return nil
 }
 
-func (c *Conn) Close() os.Error {
+func (c *Conn) Close() error {
 	c.mutex.Lock()
 
 	if c.disconnected {
@@ -134,7 +135,7 @@ func (c *Conn) Close() os.Error {
 // message and the request is dropped. If the method is GET then a new socket encapsulating
 // the request is created and a new connection is establised (or the connection will be
 // reconnected). Finally, handle will wake up the reader and the flusher.
-func (c *Conn) handle(t Transport, w http.ResponseWriter, req *http.Request) (err os.Error) {
+func (c *Conn) handle(t Transport, w http.ResponseWriter, req *http.Request) (err error) {
 	c.mutex.Lock()
 
 	if c.disconnected {
@@ -166,7 +167,7 @@ func (c *Conn) handle(t Transport, w http.ResponseWriter, req *http.Request) (er
 		}
 		c.socket = s
 		c.online = true
-		c.lastConnected = time.Nanoseconds()
+		c.lastConnected = int64(time.Now().Nanosecond())
 
 		if !c.handshaked {
 			// the connection has not been handshaked yet.
@@ -215,7 +216,7 @@ func (c *Conn) handle(t Transport, w http.ResponseWriter, req *http.Request) (er
 }
 
 // Handshake sends the handshake to the socket.
-func (c *Conn) handshake() os.Error {
+func (c *Conn) handshake() error {
 	return c.enc.Encode(c.socket, handshake(c.sessionid))
 }
 
@@ -236,7 +237,7 @@ func (c *Conn) disconnect() {
 func (c *Conn) receive(data []byte) {
 	c.decBuf.Write(data)
 	msgs, err := c.dec.Decode()
-	
+
 	if err != nil {
 		c.sio.Log("sio/conn: receive/decode:", err, c)
 		return
@@ -300,7 +301,7 @@ Loop:
 // simultaneously.
 func (c *Conn) flusher() {
 	buf := new(bytes.Buffer)
-	var err os.Error
+	var err error
 	var msg interface{}
 	var n int
 	var ok bool
@@ -403,7 +404,7 @@ func (c *Conn) reader() {
 		}
 
 		c.mutex.Lock()
-		c.lastDisconnected = time.Nanoseconds()
+		c.lastDisconnected = int64(time.Now().Nanosecond())
 		socket.Close()
 		if c.socket == socket {
 			c.online = false

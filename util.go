@@ -3,13 +3,13 @@ package socketio
 import (
 	"log"
 	"os"
-	"time"
 	"sync"
+	"time"
 )
 
 type nopWriter struct{}
 
-func (nw nopWriter) Write(p []byte) (n int, err os.Error) {
+func (nw nopWriter) Write(p []byte) (n int, err error) {
 	return len(p), nil
 }
 
@@ -39,7 +39,7 @@ func (w *DelayTimer) Stop() {
 }
 
 func (w *DelayTimer) Reset(t int64) {
-	t += time.Nanoseconds()
+	t += int64(time.Now().Nanosecond())
 	w.mu.Lock()
 	if t <= w.deadline {
 		w.mu.Unlock()
@@ -48,7 +48,7 @@ func (w *DelayTimer) Reset(t int64) {
 	if w.timer != nil {
 		w.timer.Stop()
 	}
-	w.timer = time.AfterFunc(t-time.Nanoseconds(), func() {
+	w.timer = time.AfterFunc(t-int64(time.Now().Nanosecond()), func() {
 		// If previous timeout is still being handled, then 
 		// ignore this timeout. 
 		w.mu.Lock()
@@ -58,7 +58,7 @@ func (w *DelayTimer) Reset(t int64) {
 		}
 		w.handling = true
 		w.mu.Unlock()
-		w.Timeouts <- time.Nanoseconds()
+		w.Timeouts <- int64(time.Now().Nanosecond())
 		w.mu.Lock()
 		w.handling = false
 		w.mu.Unlock()

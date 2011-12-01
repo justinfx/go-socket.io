@@ -1,12 +1,12 @@
 package socketio
 
 import (
-	"http"
-	"os"
-	"io"
 	"bytes"
-	"net"
+
 	"fmt"
+	"io"
+	"net"
+	"net/http"
 )
 
 // The xhr-multipart transport.
@@ -49,7 +49,7 @@ func (s *xhrMultipartSocket) Transport() Transport {
 
 // Accepts a http connection & request pair. It hijacks the connection, sends headers and calls
 // proceed if succesfull.
-func (s *xhrMultipartSocket) accept(w http.ResponseWriter, req *http.Request, proceed func()) (err os.Error) {
+func (s *xhrMultipartSocket) accept(w http.ResponseWriter, req *http.Request, proceed func()) (err error) {
 	if s.connected {
 		return ErrConnected
 	}
@@ -63,7 +63,7 @@ func (s *xhrMultipartSocket) accept(w http.ResponseWriter, req *http.Request, pr
 		buf := new(bytes.Buffer)
 		buf.WriteString("HTTP/1.0 200 OK\r\n")
 		buf.WriteString("Content-Type: multipart/x-mixed-replace; boundary=\"socketio\"\r\n")
-		buf.WriteString("Connection: keep-alive\r\n")
+		// buf.WriteString("Connection: keep-alive\r\n")
 		if origin := req.Header.Get("Origin"); origin != "" {
 			fmt.Fprintf(buf,
 				"Access-Control-Allow-Origin: %s\r\nAccess-Control-Allow-Credentials: true\r\n",
@@ -84,7 +84,7 @@ func (s *xhrMultipartSocket) accept(w http.ResponseWriter, req *http.Request, pr
 	return
 }
 
-func (s *xhrMultipartSocket) Read(p []byte) (n int, err os.Error) {
+func (s *xhrMultipartSocket) Read(p []byte) (n int, err error) {
 	if !s.connected {
 		return 0, ErrNotConnected
 	}
@@ -93,7 +93,7 @@ func (s *xhrMultipartSocket) Read(p []byte) (n int, err os.Error) {
 }
 
 // Write sends a single multipart message to the wire.
-func (s *xhrMultipartSocket) Write(p []byte) (n int, err os.Error) {
+func (s *xhrMultipartSocket) Write(p []byte) (n int, err error) {
 	if !s.connected {
 		return 0, ErrNotConnected
 	}
@@ -101,7 +101,7 @@ func (s *xhrMultipartSocket) Write(p []byte) (n int, err os.Error) {
 	return fmt.Fprintf(s.rwc, "Content-Type: text/plain\r\n\r\n%s\n--socketio\n", p)
 }
 
-func (s *xhrMultipartSocket) Close() os.Error {
+func (s *xhrMultipartSocket) Close() error {
 	if !s.connected {
 		return ErrNotConnected
 	}

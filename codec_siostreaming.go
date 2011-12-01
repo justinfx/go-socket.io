@@ -1,14 +1,13 @@
-
 package socketio
 
 import (
 	"bytes"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
-	"json"
-	"os"
 	"strconv"
-	"utf8"
+	"unicode/utf8"
 )
 
 // SIOStreamingCodec is the codec used by the official Socket.IO client by LearnBoost
@@ -27,7 +26,7 @@ func (sc SIOStreamingCodec) NewEncoder() Encoder {
 // of the following: a heartbeat, a handshake, []byte, string, int or anything
 // than can be marshalled by the default json package. If payload can't be
 // encoded or the writing fails, an error will be returned.
-func (enc *sioStreamingEncoder) Encode(dst io.Writer, payload interface{}) (err os.Error) {
+func (enc *sioStreamingEncoder) Encode(dst io.Writer, payload interface{}) (err error) {
 	enc.elem.Reset()
 
 	switch t := payload.(type) {
@@ -116,7 +115,7 @@ func (dec *sioStreamingDecoder) Reset() {
 	dec.length = 0
 }
 
-func (dec *sioStreamingDecoder) Decode() (messages []Message, err os.Error) {
+func (dec *sioStreamingDecoder) Decode() (messages []Message, err error) {
 	messages = make([]Message, 0, 1)
 	var c int
 	var typ uint
@@ -187,7 +186,7 @@ L:
 			case '\n':
 				if dec.buf.Len() == 0 {
 					dec.Reset()
-					return nil, os.NewError("expecting key, but got...")
+					return nil, errors.New("expecting key, but got...")
 				}
 				dec.key = dec.buf.String()
 				if dec.msg.annotations == nil {
@@ -240,7 +239,7 @@ L:
 			data := dec.buf.Bytes()
 			dec.msg.data = make([]byte, len(data))
 			copy(dec.msg.data, data)
-			
+
 			dec.buf.Reset()
 			dec.state = sioStreamingDecodeStateTrailer
 			fallthrough
@@ -252,14 +251,14 @@ L:
 				continue
 			} else {
 				dec.Reset()
-				return nil, os.NewError("Expecting trailer but got... " + string(c))
+				return nil, errors.New("Expecting trailer but got... " + string(c))
 			}
 		}
 
 		dec.buf.WriteRune(c)
 	}
 
-	if err == os.EOF {
+	if err == io.EOF {
 		err = nil
 	}
 
