@@ -117,8 +117,8 @@ func (dec *sioStreamingDecoder) Reset() {
 
 func (dec *sioStreamingDecoder) Decode() (messages []Message, err error) {
 	messages = make([]Message, 0, 1)
-	var c int
-	var typ uint
+	var c rune
+	var typ uint64
 
 L:
 	for {
@@ -136,7 +136,7 @@ L:
 		switch dec.state {
 		case sioStreamingDecodeStateType:
 			if c == ':' {
-				if typ, err = strconv.Atoui(dec.buf.String()); err != nil {
+				if typ, err = strconv.ParseUint(dec.buf.String(), 10, 0); err != nil {
 					dec.Reset()
 					return nil, err
 				}

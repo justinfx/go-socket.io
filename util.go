@@ -21,13 +21,13 @@ var (
 type DelayTimer struct {
 	mu       sync.Mutex
 	handling bool
-	deadline int64
-	Timeouts chan int64
+	deadline time.Time
+	Timeouts chan time.Time
 	timer    *time.Timer
 }
 
 func NewDelayTimer() *DelayTimer {
-	return &DelayTimer{Timeouts: make(chan int64)}
+	return &DelayTimer{Timeouts: make(chan time.Time)}
 }
 
 func (w *DelayTimer) Stop() {
@@ -38,17 +38,17 @@ func (w *DelayTimer) Stop() {
 	w.mu.Unlock()
 }
 
-func (w *DelayTimer) Reset(t int64) {
-	t += int64(time.Now().Nanosecond())
+func (w *DelayTimer) Reset(t time.Duration) {
+	nt := time.Now().Add(t)
 	w.mu.Lock()
-	if t <= w.deadline {
+	if nt.Before(w.deadline) {
 		w.mu.Unlock()
 		return
 	}
 	if w.timer != nil {
 		w.timer.Stop()
 	}
-	w.timer = time.AfterFunc(t-int64(time.Now().Nanosecond()), func() {
+	w.timer = time.AfterFunc(nt.Sub(time.Now()), func() {
 		// If previous timeout is still being handled, then 
 		// ignore this timeout. 
 		w.mu.Lock()
@@ -58,11 +58,11 @@ func (w *DelayTimer) Reset(t int64) {
 		}
 		w.handling = true
 		w.mu.Unlock()
-		w.Timeouts <- int64(time.Now().Nanosecond())
+		w.Timeouts <- time.Now()
 		w.mu.Lock()
 		w.handling = false
 		w.mu.Unlock()
 	})
-	w.deadline = t
+	w.deadline = nt
 	w.mu.Unlock()
 }

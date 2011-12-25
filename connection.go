@@ -29,9 +29,9 @@ type Conn struct {
 	sio              *SocketIO // The server.
 	sessionid        SessionID
 	online           bool
-	lastConnected    int64
-	lastDisconnected int64
-	lastMessage      int64
+	lastConnected    time.Time
+	lastDisconnected time.Time
+	lastMessage      time.Time
 	lastHeartbeat    heartbeat
 	numHeartbeats    int
 	ticker           *DelayTimer
@@ -65,7 +65,7 @@ func newConn(sio *SocketIO) (c *Conn, err error) {
 		queue:         make(chan interface{}, sio.config.QueueLength),
 		serviceQueue:  make(chan interface{}, 10), // TODO: Reasonable to expect this limit?
 		enc:           sio.config.Codec.NewEncoder(),
-		lastMessage:   int64(time.Now().Nanosecond()),
+		lastMessage:   time.Now(),
 	}
 
 	c.dec = sio.config.Codec.NewDecoder(&c.decBuf)
@@ -167,7 +167,7 @@ func (c *Conn) handle(t Transport, w http.ResponseWriter, req *http.Request) (er
 		}
 		c.socket = s
 		c.online = true
-		c.lastConnected = int64(time.Now().Nanosecond())
+		c.lastConnected = time.Now()
 
 		if !c.handshaked {
 			// the connection has not been handshaked yet.
@@ -253,7 +253,7 @@ func (c *Conn) receive(data []byte) {
 }
 
 func (c *Conn) keepalive() {
-	interval := c.sio.config.HeartbeatInterval
+	interval := time.Duration(c.sio.config.HeartbeatInterval)
 	c.ticker = NewDelayTimer()
 	c.ticker.Reset(interval)
 	defer c.ticker.Stop()
@@ -266,7 +266,7 @@ Loop:
 			return
 		}
 
-		if (!c.online && t-c.lastDisconnected > c.sio.config.ReconnectTimeout) || int(c.lastHeartbeat) < c.numHeartbeats {
+		if (!c.online && int64(t.Sub(c.lastDisconnected)) > c.sio.config.ReconnectTimeout) || int(c.lastHeartbeat) < c.numHeartbeats {
 			c.disconnect()
 			c.mutex.Unlock()
 			break Loop
@@ -404,7 +404,7 @@ func (c *Conn) reader() {
 		}
 
 		c.mutex.Lock()
-		c.lastDisconnected = int64(time.Now().Nanosecond())
+		c.lastDisconnected = time.Now()
 		socket.Close()
 		if c.socket == socket {
 			c.online = false

@@ -67,7 +67,7 @@ func (s *htmlfileSocket) accept(w http.ResponseWriter, req *http.Request, procee
 		buf := new(bytes.Buffer)
 		buf.WriteString("HTTP/1.1 200 OK\r\n")
 		buf.WriteString("Content-Type: text/html\r\n")
-		// buf.WriteString("Connection: keep-alive\r\n")
+		buf.WriteString("Connection: keep-alive\r\n")
 		buf.WriteString("Transfer-Encoding: chunked\r\n\r\n")
 		if _, err = buf.WriteTo(rwc); err != nil {
 			rwc.Close()
