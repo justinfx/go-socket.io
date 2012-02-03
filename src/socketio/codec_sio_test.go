@@ -2,13 +2,13 @@ package socketio
 
 import (
 	"bytes"
+	"exp/utf8string"
 	"fmt"
 	"testing"
-	"unicode/utf8"
 )
 
 func frame(data string, json bool) string {
-	utf8str := utf8.NewString(data)
+	utf8str := utf8string.NewString(data)
 	if json {
 		return fmt.Sprintf("~m~%d~m~~j~%s", 3+utf8str.RuneCount(), data)
 	}

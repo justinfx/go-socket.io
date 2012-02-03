@@ -4,7 +4,7 @@ import (
 	"errors"
 	"net/http"
 
-	"websocket"
+	"code.google.com/p/go.net/websocket"
 )
 
 var errWebsocketHandshake = errors.New("websocket handshake error")
@@ -59,8 +59,8 @@ func (s *websocketSocket) accept(w http.ResponseWriter, req *http.Request, proce
 
 	f := func(ws *websocket.Conn) {
 		err = nil
-		ws.SetReadTimeout(s.t.rtimeout)
-		ws.SetWriteTimeout(s.t.wtimeout)
+		// ws.SetReadTimeout(s.t.rtimeout)
+		// ws.SetWriteTimeout(s.t.wtimeout)
 		s.connected = true
 		s.ws = ws
 		s.close = make(chan byte)

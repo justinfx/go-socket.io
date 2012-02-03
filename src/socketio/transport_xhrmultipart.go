@@ -5,7 +5,6 @@ import (
 
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 )
 
@@ -57,8 +56,8 @@ func (s *xhrMultipartSocket) accept(w http.ResponseWriter, req *http.Request, pr
 	rwc, _, err := w.(http.Hijacker).Hijack()
 
 	if err == nil {
-		rwc.(*net.TCPConn).SetReadTimeout(s.t.rtimeout)
-		rwc.(*net.TCPConn).SetWriteTimeout(s.t.wtimeout)
+		// rwc.(*net.TCPConn).SetReadTimeout(s.t.rtimeout)
+		// rwc.(*net.TCPConn).SetWriteTimeout(s.t.wtimeout)
 
 		buf := new(bytes.Buffer)
 		buf.WriteString("HTTP/1.0 200 OK\r\n")

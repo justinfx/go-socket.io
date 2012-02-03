@@ -2,14 +2,14 @@ package socketio
 
 import (
 	"bytes"
+	"exp/utf8string"
 	"fmt"
 	"testing"
-	"unicode/utf8"
 	"unsafe"
 )
 
 func streamingFrame(data string, typ int, json bool) string {
-	utf8str := utf8.NewString(data)
+	utf8str := utf8string.NewString(data)
 	switch typ {
 	case 0:
 		return "0:0:,"

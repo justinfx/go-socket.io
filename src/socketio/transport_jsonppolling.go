@@ -1,8 +1,8 @@
 package socketio
 
 import (
-	"fmt"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"strconv"
@@ -56,8 +56,8 @@ func (s *jsonpPollingSocket) accept(w http.ResponseWriter, req *http.Request, pr
 
 	rwc, _, err := w.(http.Hijacker).Hijack()
 	if err == nil {
-		rwc.SetReadTimeout(s.t.rtimeout)
-		rwc.SetWriteTimeout(s.t.wtimeout)
+		// rwc.SetReadTimeout(s.t.rtimeout)
+		// rwc.SetWriteTimeout(s.t.wtimeout)
 		s.rwc = rwc
 		s.connected = true
 		s.index = 0

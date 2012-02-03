@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"exp/utf8string"
 	"fmt"
 	"io"
 	"strconv"
@@ -272,7 +273,7 @@ L:
 				dec.buf.WriteRune(c)
 				dec.length--
 
-				utf8str := utf8.NewString(dec.src.String())
+				utf8str := utf8string.NewString(dec.src.String())
 
 				if utf8str.RuneCount() >= dec.length {
 					str := utf8str.Slice(0, dec.length)

@@ -57,8 +57,8 @@ func (s *xhrPollingSocket) accept(w http.ResponseWriter, req *http.Request, proc
 	s.req = req
 	rwc, _, err := w.(http.Hijacker).Hijack()
 	if err == nil {
-		rwc.SetReadTimeout(s.t.rtimeout)
-		rwc.SetWriteTimeout(s.t.wtimeout)
+		// rwc.SetReadTimeout(s.t.rtimeout)
+		// rwc.SetWriteTimeout(s.t.wtimeout)
 		s.rwc = rwc.(io.ReadWriteCloser)
 		s.connected = true
 		proceed()

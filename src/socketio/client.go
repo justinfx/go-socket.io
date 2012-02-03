@@ -6,7 +6,7 @@ import (
 	"io"
 	"strconv"
 
-	"websocket"
+	"code.google.com/p/go.net/websocket"
 )
 
 // Client is a toy interface.
