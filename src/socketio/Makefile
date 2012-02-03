@@ -20,7 +20,6 @@ GOFILES = \
 	transport_flashsocket.go \
 	transport_jsonppolling.go \
 	client.go \
-	doc.go \
 	
 include $(GOROOT)/src/Make.pkg
 
