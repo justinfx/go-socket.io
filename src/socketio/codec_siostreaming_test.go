@@ -1,16 +1,15 @@
 package socketio
 
 import (
-	"testing"
-	"utf8"
-	"fmt"
 	"bytes"
+	"exp/utf8string"
+	"fmt"
+	"testing"
 	"unsafe"
-	"os"
 )
 
 func streamingFrame(data string, typ int, json bool) string {
-	utf8str := utf8.NewString(data)
+	utf8str := utf8string.NewString(data)
 	switch typ {
 	case 0:
 		return "0:0:,"
@@ -76,7 +75,6 @@ var streamingEncodeTests = []streamingEncodeTest{
 		streamingFrame("hello, world", 1, false),
 	},
 }
-
 
 type streamingDecodeTestMessage struct {
 	messageType uint8
@@ -148,7 +146,7 @@ func TestStreamingDecode(t *testing.T) {
 	buf := new(bytes.Buffer)
 	dec := codec.NewDecoder(buf)
 	var messages []Message
-	var err os.Error
+	var err error
 
 	for _, test := range streamingDecodeTests {
 		t.Logf("in=%s out=%v", test.in, test.out)
@@ -185,7 +183,7 @@ func TestStreamingDecode(t *testing.T) {
 
 func TestStreamingDecodeStreaming(t *testing.T) {
 	var messages []Message
-	var err os.Error
+	var err error
 	codec := SIOStreamingCodec{}
 	buf := new(bytes.Buffer)
 	dec := codec.NewDecoder(buf)

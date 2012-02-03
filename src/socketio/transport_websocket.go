@@ -1,12 +1,13 @@
 package socketio
 
 import (
-	"http"
-	"os"
-	"websocket"
+	"errors"
+	"net/http"
+
+	"code.google.com/p/go.net/websocket"
 )
 
-var errWebsocketHandshake = os.NewError("websocket handshake error")
+var errWebsocketHandshake = errors.New("websocket handshake error")
 
 // The websocket transport.
 type websocketTransport struct {
@@ -51,15 +52,15 @@ func (s *websocketSocket) String() string {
 // proceed if succesfull.
 //
 // TODO: Remove the ugly channels and timeouts. They should not be needed!
-func (s *websocketSocket) accept(w http.ResponseWriter, req *http.Request, proceed func()) (err os.Error) {
+func (s *websocketSocket) accept(w http.ResponseWriter, req *http.Request, proceed func()) (err error) {
 	if s.connected {
 		return ErrConnected
 	}
 
 	f := func(ws *websocket.Conn) {
 		err = nil
-		ws.SetReadTimeout(s.t.rtimeout)
-		ws.SetWriteTimeout(s.t.wtimeout)
+		// ws.SetReadTimeout(s.t.rtimeout)
+		// ws.SetWriteTimeout(s.t.wtimeout)
 		s.connected = true
 		s.ws = ws
 		s.close = make(chan byte)
@@ -76,7 +77,7 @@ func (s *websocketSocket) accept(w http.ResponseWriter, req *http.Request, proce
 	return
 }
 
-func (s *websocketSocket) Read(p []byte) (int, os.Error) {
+func (s *websocketSocket) Read(p []byte) (int, error) {
 	if !s.connected {
 		return 0, ErrNotConnected
 	}
@@ -84,7 +85,7 @@ func (s *websocketSocket) Read(p []byte) (int, os.Error) {
 	return s.ws.Read(p)
 }
 
-func (s *websocketSocket) Write(p []byte) (int, os.Error) {
+func (s *websocketSocket) Write(p []byte) (int, error) {
 	if !s.connected {
 		return 0, ErrNotConnected
 	}
@@ -92,7 +93,7 @@ func (s *websocketSocket) Write(p []byte) (int, os.Error) {
 	return s.ws.Write(p)
 }
 
-func (s *websocketSocket) Close() os.Error {
+func (s *websocketSocket) Close() error {
 	if !s.connected {
 		return ErrNotConnected
 	}
