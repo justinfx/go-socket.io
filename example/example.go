@@ -3,8 +3,8 @@ package main
 import (
 	"log"
 	"net/http"
-	"socketio"
 	"sync"
+	"go-socket.io/socketio"
 )
 
 type Announcement struct {
