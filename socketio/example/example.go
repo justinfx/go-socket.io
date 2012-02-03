@@ -8,7 +8,7 @@ import (
 )
 
 type Announcement struct {
-	Announcement string "announcement"
+	Announcement string `json:"announcement"`
 }
 
 type Buffer struct {
@@ -16,7 +16,7 @@ type Buffer struct {
 }
 
 type Message struct {
-	Message []string "message"
+	Message []string `json:"message"`
 }
 
 // A very simple chat server
