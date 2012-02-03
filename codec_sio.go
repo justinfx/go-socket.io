@@ -2,13 +2,11 @@ package socketio
 
 import (
 	"bytes"
-	"container/vector"
 	"fmt"
 	"io"
 	"json"
 	"os"
 	"strconv"
-	"strings"
 	"utf8"
 )
 
@@ -17,21 +15,23 @@ const (
 	SIOAnnotationRealm = "r"
 	SIOAnnotationJSON  = "j"
 
-	sioFrameDelim          = "~m~"
-	sioFrameDelimJSON      = "~j~"
-	sioFrameDelimHeartbeat = "~h~"
-
 	sioMessageTypeDisconnect = 0
 	sioMessageTypeMessage    = 1
 	sioMessageTypeHeartbeat  = 2
 	sioMessageTypeHandshake  = 3
 )
 
+var (
+	sioFrameDelim          = []byte("~m~")
+	sioFrameDelimJSON      = []byte("~j~")
+	sioFrameDelimHeartbeat = []byte("~h~")
+)
+
 // SioMessage fulfills the message interface.
 type sioMessage struct {
 	annotations map[string]string
 	typ         uint8
-	data        string
+	data        []byte
 }
 
 // MessageType checks if the message starts with sioFrameDelimJSON or
@@ -74,7 +74,7 @@ func (sm *sioMessage) Annotation(key string) (value string, ok bool) {
 // false will be returned.
 func (sm *sioMessage) heartbeat() (heartbeat, bool) {
 	if sm.typ == sioMessageTypeHeartbeat {
-		if n, err := strconv.Atoi(sm.data); err == nil {
+		if n, err := strconv.Atoi(string(sm.data)); err == nil {
 			return heartbeat(n), true
 		}
 	}
@@ -82,18 +82,23 @@ func (sm *sioMessage) heartbeat() (heartbeat, bool) {
 	return -1, false
 }
 
-// Data returns the raw message.
+// Data returns the raw message as a string.
 func (sm *sioMessage) Data() string {
 	return string(sm.data)
 }
 
+// Bytes returns the raw message.
+func (sm *sioMessage) Bytes() []byte {
+	return sm.data
+}
+
 // JSON returns the JSON embedded in the message, if available.
-func (sm *sioMessage) JSON() (string, bool) {
+func (sm *sioMessage) JSON() ([]byte, bool) {
 	if sm.Type() == MessageJSON {
 		return sm.data, true
 	}
 
-	return "", false
+	return nil, false
 }
 
 // SIOCodec is the codec used by the official Socket.IO client by LearnBoost.
@@ -173,7 +178,6 @@ const (
 	sioDecodeStateEnd
 )
 
-
 type sioDecoder struct {
 	src           *bytes.Buffer
 	buf           bytes.Buffer
@@ -200,7 +204,7 @@ func (dec *sioDecoder) Reset() {
 }
 
 func (dec *sioDecoder) Decode() (messages []Message, err os.Error) {
-	var vec vector.Vector
+	messages = make([]Message, 0, 1)
 	var c int
 
 L:
@@ -220,7 +224,7 @@ L:
 		case sioDecodeStateHeaderBegin:
 			dec.buf.WriteRune(c)
 			if dec.buf.Len() == len(sioFrameDelim) {
-				if dec.buf.String() != sioFrameDelim {
+				if !bytes.Equal(dec.buf.Bytes(), sioFrameDelim) {
 					dec.Reset()
 					return nil, os.NewError("Malformed header")
 				}
@@ -251,7 +255,7 @@ L:
 				continue
 			}
 
-			if dec.buf.String() != sioFrameDelim {
+			if !bytes.Equal(dec.buf.Bytes(), sioFrameDelim) {
 				dec.Reset()
 				return nil, os.NewError("Malformed header")
 			}
@@ -280,19 +284,21 @@ L:
 				}
 			}
 
-			dec.msg.data = dec.buf.String()
+			data := dec.buf.Bytes()
 			dec.msg.typ = sioMessageTypeMessage
 
-			if strings.HasPrefix(dec.msg.data, sioFrameDelimJSON) {
+			if bytes.HasPrefix(data, sioFrameDelimJSON) {
 				dec.msg.annotations = make(map[string]string)
 				dec.msg.annotations[SIOAnnotationJSON] = ""
-				dec.msg.data = dec.msg.data[len(sioFrameDelimJSON):]
-			} else if strings.HasPrefix(dec.msg.data, sioFrameDelimHeartbeat) {
+				data = data[len(sioFrameDelimJSON):]
+			} else if bytes.HasPrefix(data, sioFrameDelimHeartbeat) {
 				dec.msg.typ = sioMessageTypeHeartbeat
-				dec.msg.data = dec.msg.data[len(sioFrameDelimHeartbeat):]
+				data = data[len(sioFrameDelimHeartbeat):]
 			}
+			dec.msg.data = make([]byte, len(data))
+			copy(dec.msg.data, data)
 
-			vec.Push(dec.msg)
+			messages = append(messages, dec.msg)
 
 			dec.state = sioDecodeStateBegin
 			dec.buf.Reset()
@@ -300,11 +306,6 @@ L:
 		}
 
 		dec.buf.WriteRune(c)
-	}
-
-	messages = make([]Message, vec.Len())
-	for i, v := range vec {
-		messages[i] = v.(*sioMessage)
 	}
 
 	if err == os.EOF {

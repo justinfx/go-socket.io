@@ -9,15 +9,15 @@ import (
 )
 
 type Announcement struct {
-	Announcement string "announcement"
+	Announcement string `json:"announcement"`
 }
 
 type Buffer struct {
-	Buffer []interface{} "buffer"
+	Buffer []interface{} `json:"buffer"`
 }
 
 type Message struct {
-	Message []string "message"
+	Message []string `json:"message"`
 }
 
 // A very simple chat server
@@ -61,7 +61,7 @@ func main() {
 	log.Println("Server starting. Tune your browser to http://localhost:8080/")
 
 	mux := sio.ServeMux()
-	mux.Handle("/", http.FileServer("www/", "/"))
+	mux.Handle("/", http.FileServer(http.Dir("www/")))
 
 	if err := http.ListenAndServe(":8080", mux); err != nil {
 		log.Fatal("ListenAndServe:", err)
