@@ -44,6 +44,8 @@ type Conn struct {
 	dec              Decoder
 	decBuf           bytes.Buffer
 	raddr            string
+
+	UserData interface{} // User data
 }
 
 // NewConn creates a new connection for the sio. It generates the session id and
@@ -73,6 +75,11 @@ func newConn(sio *SocketIO) (c *Conn, err error) {
 // fmt.Stringer interface.
 func (c *Conn) String() string {
 	return fmt.Sprintf("%v[%v]", c.sessionid, c.socket)
+}
+
+// SessionID return the session id of Conn
+func (c *Conn) SessionID() SessionID {
+	return c.sessionid
 }
 
 // RemoteAddr returns the remote network address of the connection in IP:port format
