@@ -238,7 +238,7 @@ func (c *Conn) receive(data []byte) {
 }
 
 func (c *Conn) keepalive() {
-	c.ticker = time.NewTicker(time.Duration(c.sio.config.HeartbeatInterval))
+	c.ticker = time.NewTicker(c.sio.config.HeartbeatInterval)
 	defer c.ticker.Stop()
 
 Loop:
@@ -250,7 +250,7 @@ Loop:
 			return
 		}
 
-		if (!c.online && t.Sub(c.lastDisconnected) > time.Duration(c.sio.config.ReconnectTimeout)) || int(c.lastHeartbeat) < c.numHeartbeats {
+		if (!c.online && t.Sub(c.lastDisconnected) > c.sio.config.ReconnectTimeout) || int(c.lastHeartbeat) < c.numHeartbeats {
 			c.disconnect()
 			c.mutex.Unlock()
 			break
