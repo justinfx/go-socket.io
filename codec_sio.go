@@ -274,19 +274,21 @@ L:
 
 				utf8str := dec.src.String()
 
-				if utf8.RuneCountInString(utf8str) >= dec.length {
-					buf := make([]byte, 4)
-					for _, r := range utf8str {
-						s := utf8.EncodeRune(buf, r)
-						dec.buf.Write(buf[:s])
-						dec.src.Next(s)
-						dec.length--
-						if dec.length == 0 {
-							break
+				if dec.length > 0 {
+					if utf8.RuneCountInString(utf8str) >= dec.length {
+						buf := make([]byte, 4)
+						for _, r := range utf8str {
+							s := utf8.EncodeRune(buf, r)
+							dec.buf.Write(buf[:s])
+							dec.src.Next(s)
+							dec.length--
+							if dec.length == 0 {
+								break
+							}
 						}
+					} else {
+						break L
 					}
-				} else {
-					break L
 				}
 			}
 

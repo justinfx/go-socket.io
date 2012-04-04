@@ -220,25 +220,29 @@ L:
 			}
 
 		case sioStreamingDecodeStateData:
+			used := false
 			if dec.length > 0 {
 				dec.buf.WriteRune(c)
 				dec.length--
+				used = true
 
-				utf8str := dec.src.String()
-				if utf8.RuneCountInString(utf8str) >= dec.length {
-					buf := make([]byte, 4)
-					for _, r := range utf8str {
-						size := utf8.EncodeRune(buf, r)
-						dec.buf.Write(buf[:size])
-						dec.src.Next(size)
-						dec.length--
-						if dec.length == 0 {
-							break
+				if dec.length > 0 {
+					utf8str := dec.src.String()
+					if utf8.RuneCountInString(utf8str) >= dec.length {
+						buf := make([]byte, 4)
+						for _, r := range utf8str {
+							size := utf8.EncodeRune(buf, r)
+							dec.buf.Write(buf[:size])
+							dec.src.Next(size)
+							dec.length--
+							if dec.length == 0 {
+								break
+							}
 						}
+						continue
+					} else {
+						break L
 					}
-					continue
-				} else {
-					break L
 				}
 			}
 
@@ -248,6 +252,9 @@ L:
 
 			dec.buf.Reset()
 			dec.state = sioStreamingDecodeStateTrailer
+			if used {
+				continue
+			}
 			fallthrough
 
 		case sioStreamingDecodeStateTrailer:
