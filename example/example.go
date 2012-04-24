@@ -4,7 +4,7 @@ import (
 	"log"
 	"net/http"
 	"sync"
-	"go-socket.io/socketio"
+	"github.com/justinfx/go-socket.io/socketio"
 )
 
 type Announcement struct {
@@ -21,7 +21,7 @@ type Message struct {
 
 // A very simple chat server
 func main() {
-	buffer := make([]Message, 0)
+	var buffer []interface{}
 	mutex := new(sync.Mutex)
 
 	// create the socket.io server and mux it to /socket.io/
@@ -38,7 +38,7 @@ func main() {
 	// when a client connects - send it the buffer and broadcasta an announcement
 	sio.OnConnect(func(c *socketio.Conn) {
 		mutex.Lock()
-		b := make([]Message, len(buffer))
+		b := make([]interface{}, len(buffer))
 		copy(b, buffer)
 		c.Send(Buffer{b})
 		mutex.Unlock()
