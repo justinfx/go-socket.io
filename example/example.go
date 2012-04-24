@@ -1,11 +1,10 @@
 package main
 
 import (
-	"container/vector"
-	"http"
 	"log"
-	"socketio"
+	"net/http"
 	"sync"
+	"go-socket.io/socketio"
 )
 
 type Announcement struct {
@@ -22,7 +21,7 @@ type Message struct {
 
 // A very simple chat server
 func main() {
-	buffer := new(vector.Vector)
+	buffer := make([]Message, 0)
 	mutex := new(sync.Mutex)
 
 	// create the socket.io server and mux it to /socket.io/
@@ -39,7 +38,9 @@ func main() {
 	// when a client connects - send it the buffer and broadcasta an announcement
 	sio.OnConnect(func(c *socketio.Conn) {
 		mutex.Lock()
-		c.Send(Buffer{buffer.Copy()})
+		b := make([]Message, len(buffer))
+		copy(b, buffer)
+		c.Send(Buffer{b})
 		mutex.Unlock()
 		sio.Broadcast(Announcement{"connected: " + c.String()})
 	})
@@ -53,7 +54,7 @@ func main() {
 	sio.OnMessage(func(c *socketio.Conn, msg socketio.Message) {
 		payload := Message{[]string{c.String(), msg.Data()}}
 		mutex.Lock()
-		buffer.Push(payload)
+		buffer = append(buffer, payload)
 		mutex.Unlock()
 		sio.Broadcast(payload)
 	})
