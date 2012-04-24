@@ -1,6 +1,9 @@
 package socketio
 
-import "net/http"
+import (
+	"net/http"
+	"time"
+)
 
 // The flashsocket transport.
 type flashsocketTransport struct {
