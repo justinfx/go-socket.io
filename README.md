@@ -54,6 +54,20 @@ default bundled codecs, `SIOCodec` and `SIOStreamingCodec` are fully compatible
 with the LearnBoost's [Socket.IO client](http://github.com/LearnBoost/Socket.IO)
 (master and development branches).
 
+## Installation
+
+Go1 compat. installation:
+
+    $ go get github.com/justinfx/go-socket.io/socketio
+    
+Aftwards, you can run the bundled example by following these steps:
+
+    $ cd $GOPATH/src/github.com/justinfx/go-socket.io
+    $ git submodule update --init
+    $ cd bin
+    $ go build github.com/justinfx/go-socket.io/example
+    $ ./example
+    
 ## Example: A simple chat server
 
 	package main
@@ -89,17 +103,6 @@ with the LearnBoost's [Socket.IO client](http://github.com/LearnBoost/Socket.IO)
 		}
 	}
 
-## tl;dr
-
-You can get the code and run the bundled example by following these steps:
-
-	$ git clone git://github.com/madari/go-socket.io.git
-	$ cd go-socket.io
-	$ git submodule update --init --recursive
-	$ make install
-	$ cd example
-	$ make
-	$ ./example
 
 ## License 
 
