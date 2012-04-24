@@ -7,9 +7,9 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"os"
 	"strings"
 	"sync"
+	"syscall"
 )
 
 // SocketIO handles transport abstraction and provide the user
@@ -359,7 +359,7 @@ func (sio *SocketIO) ListenAndServeFlashPolicy(laddr string) error {
 			var nw int
 			for nw < len(policy) {
 				n, err := conn.Write(policy[nw:])
-				if err != nil && err != os.EAGAIN {
+				if err != nil && err != syscall.EAGAIN {
 					sio.Log("ServeFlashsocketPolicy:", err)
 					return
 				}

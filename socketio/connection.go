@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"os"
 	"sync"
+	"syscall"
 	"time"
 )
 
@@ -358,7 +358,7 @@ func (c *Conn) flusher() {
 				c.mutex.Unlock()
 				if err == nil {
 					break FlushLoop
-				} else if err != os.EAGAIN {
+				} else if err != syscall.EAGAIN {
 					break
 				}
 			}
@@ -387,7 +387,7 @@ func (c *Conn) reader() {
 		for {
 			nr, err := socket.Read(buf)
 			if err != nil {
-				if err != os.EAGAIN {
+				if err != syscall.EAGAIN {
 					if neterr, ok := err.(*net.OpError); ok && neterr.Timeout() {
 						c.sio.Log("sio/conn: lost connection (timeout):", c)
 						socket.Write(emptyResponse)
