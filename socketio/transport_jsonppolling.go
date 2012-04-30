@@ -93,10 +93,13 @@ func (s *jsonpPollingSocket) Write(p []byte) (n int, err error) {
 		return
 	}
 
+	n = len(p)
+	
 	jsonp := fmt.Sprintf("io.JSONP[%d]._(%s);", s.index, string(jp))
-	return fmt.Fprintf(s.rwc,
+	_, err = fmt.Fprintf(s.rwc,
 		"HTTP/1.0 200 OK\r\nContent-Type: text/javascript; charset=UTF-8\r\nContent-Length: %d\r\n\r\n%s",
 		len(jsonp), jsonp)
+	return n, err
 }
 
 func (s *jsonpPollingSocket) Close() error {

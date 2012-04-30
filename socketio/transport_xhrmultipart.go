@@ -97,8 +97,10 @@ func (s *xhrMultipartSocket) Write(p []byte) (n int, err error) {
 	if !s.connected {
 		return 0, ErrNotConnected
 	}
+	n = len(p)
 
-	return fmt.Fprintf(s.rwc, "Content-Type: text/plain\r\n\r\n%s\n--socketio\n", p)
+	_, err = fmt.Fprintf(s.rwc, "Content-Type: text/plain\r\n\r\n%s\n--socketio\n", p)
+	return n, err
 }
 
 func (s *xhrMultipartSocket) Close() error {

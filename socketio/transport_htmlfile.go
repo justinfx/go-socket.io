@@ -105,8 +105,11 @@ func (s *htmlfileSocket) Write(p []byte) (n int, err error) {
 		return
 	}
 
+	n = len(p)
+
 	fmt.Fprintf(&buf, "<script>parent.s._(%s, document);</script>", jp)
-	return fmt.Fprintf(s.rwc, "%x\r\n%s\r\n", buf.Len(), buf.String())
+	_, err = fmt.Fprintf(s.rwc, "%x\r\n%s\r\n", buf.Len(), buf.String())
+	return n, err
 }
 
 func (s *htmlfileSocket) Close() error {

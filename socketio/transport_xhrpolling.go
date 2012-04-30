@@ -100,8 +100,9 @@ func (s *xhrPollingSocket) Write(p []byte) (int, error) {
 	buf.WriteString("\r\n")
 	buf.Write(p)
 
-	nr, err := buf.WriteTo(s.rwc)
-	return int(nr), err
+	_, err := buf.WriteTo(s.rwc)
+
+	return len(p), err
 }
 
 func (s *xhrPollingSocket) Close() error {
