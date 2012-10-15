@@ -65,7 +65,7 @@ func newConn(sio *SocketIO) (c *Conn, err error) {
 		wakeupFlusher: make(chan byte),
 		wakeupReader:  make(chan byte),
 		queue:         make(chan interface{}, sio.config.QueueLength),
-		serviceQueue:  make(chan interface{}, 10), // TODO: Reasonable to expect this limit?
+		serviceQueue:  make(chan interface{}, 100), // TODO: Reasonable to expect this limit?
 		enc:           sio.config.Codec.NewEncoder(),
 		lastMessage:   time.Now(),
 	}
@@ -260,7 +260,16 @@ func (c *Conn) receive(data []byte) {
 }
 
 func (c *Conn) keepalive() {
-	interval := time.Duration(c.sio.config.HeartbeatInterval)
+	// If the reconnect interval was set to be lower than heartbeat, we need to
+	// adjust the heartbeat to match so that we evaluate fast enough to catch the
+	// reconnect timeout accurately
+	var interval time.Duration
+	if c.sio.config.ReconnectTimeout < c.sio.config.HeartbeatInterval {
+		interval = c.sio.config.ReconnectTimeout
+	} else {
+		interval = c.sio.config.HeartbeatInterval
+	}
+
 	c.ticker = NewDelayTimer()
 	c.ticker.Reset(interval)
 	defer c.ticker.Stop()
@@ -273,7 +282,9 @@ Loop:
 			return
 		}
 
-		if (!c.online && t.Sub(c.lastDisconnected) > c.sio.config.ReconnectTimeout) || int(c.lastHeartbeat) < c.numHeartbeats {
+		if (!c.online && t.Sub(c.lastDisconnected) > c.sio.config.ReconnectTimeout) ||
+			(c.online && int(c.lastHeartbeat) < c.numHeartbeats) {
+
 			c.disconnect()
 			c.mutex.Unlock()
 			break Loop
